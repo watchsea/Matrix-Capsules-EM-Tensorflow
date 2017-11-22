@@ -10,23 +10,24 @@ flags.DEFINE_float('ac_lambda_step', 1.0, 'It is described that \lambda increase
 
 flags.DEFINE_integer('batch_size', 128, 'batch size')
 flags.DEFINE_integer('epoch', 50, 'epoch')
-flags.DEFINE_integer('iter_routing', 1, 'number of iterations')
+flags.DEFINE_integer('iter_routing', 0, 'number of iterations')
 flags.DEFINE_float('epsilon', 1e-9, 'epsilon')
 
 ################################
 #    structure parameters      #
 ################################
 flags.DEFINE_integer('A', 32, 'number of channels in output from ReLU Conv1')
-flags.DEFINE_integer('B', 4, 'number of capsules in output from PrimaryCaps')
-flags.DEFINE_integer('C', 4, 'number of channels in output from ConvCaps1')
-flags.DEFINE_integer('D', 4, 'number of channels in output from ConvCaps2')
+flags.DEFINE_integer('B', 8, 'number of capsules in output from PrimaryCaps')
+flags.DEFINE_integer('C', 16, 'number of channels in output from ConvCaps1')
+flags.DEFINE_integer('D', 16, 'number of channels in output from ConvCaps2')
 
 ############################
 #   environment setting    #
 ############################
-flags.DEFINE_string('dataset', 'data/mnist', 'the path for dataset')
+flags.DEFINE_string('dataset', 'E:\study\data\mnist', 'the path for dataset')
 flags.DEFINE_boolean('is_train', True, 'train or predict phase')
 flags.DEFINE_integer('num_threads', 8, 'number of threads of enqueueing exampls')
 flags.DEFINE_string('logdir', 'logdir', 'logs directory')
+flags.DEFINE_string('test_logdir', 'test_logdir', 'test logs directory')
 
 cfg = tf.app.flags.FLAGS
