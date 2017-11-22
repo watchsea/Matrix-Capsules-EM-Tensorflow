@@ -42,6 +42,15 @@ def main(_):
         # latest = os.path.join(cfg.logdir, 'model.ckpt-4680')
         # saver.restore(sess, latest)
 
+        # restore from the check point
+        ckpt = tf.train.get_checkpoint_state(cfg.logdir)
+        if ckpt and ckpt.model_checkpoint_path:
+            saver.restore(sess, ckpt.model_checkpoint_path)
+            initial_step = int(ckpt.model_checkpoint_path.split('-')[1])
+            print(ckpt, ckpt.model_checkpoint_path, initial_step)
+        else:
+            initial_step =0
+
         summary_op = tf.summary.merge(summaries)
         tf.train.start_queue_runners(sess=sess)
 
@@ -50,7 +59,7 @@ def main(_):
         for step in range(cfg.epoch*num_batches_per_epoch):
             tic = time.time()
             _, loss_value = sess.run([train_op, loss])
-            print('%d iteration is finished in ' % step + '%f second' % (time.time()-tic))
+            print('%d iteration is finished in ' % step + '%f second' % (time.time()-tic) + ',loss: %f'% loss_value)
             # test1_v = sess.run(test2)
 
             # if np.isnan(loss_value):
@@ -64,7 +73,7 @@ def main(_):
 
             if (step % num_batches_per_epoch) == 0:
                 ckpt_path = os.path.join(cfg.logdir, 'model.ckpt')
-                saver.save(sess, ckpt_path, global_step=step)
+                saver.save(sess, ckpt_path, global_step=initial_step+step)
 
 if __name__ == "__main__":
     tf.app.run()
