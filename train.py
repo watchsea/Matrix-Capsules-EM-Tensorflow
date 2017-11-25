@@ -69,7 +69,7 @@ def main(_):
 
             if step % 10 == 0:
                 summary_str = sess.run(summary_op)
-                summary_writer.add_summary(summary_str, step)
+                summary_writer.add_summary(summary_str, initial_step+step)
 
             if (step % num_batches_per_epoch) == 0:
                 ckpt_path = os.path.join(cfg.logdir, 'model.ckpt')
