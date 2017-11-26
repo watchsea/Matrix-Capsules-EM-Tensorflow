@@ -69,6 +69,7 @@ def main(_):
         summary_writer = tf.summary.FileWriter(cfg.logdir, graph=sess.graph)
 
         m = 0.2
+        cal_num=0
         for step in range(cfg.epoch):
             for i in range(num_batches_per_epoch):
                 tic = time.time()
@@ -80,10 +81,14 @@ def main(_):
                 #     print('bbb')
                 #  assert not np.isnan(np.any(test2_v[0])), 'a is nan'
                 assert not np.isnan(loss_value), 'loss is nan'
-
-                if step % 10 == 0:
+                cal_num+=1
+                if i % 10 == 0:
                     summary_str = sess.run(summary_op, feed_dict={m_op: m})
-                    summary_writer.add_summary(summary_str, initial_step+step)
+                    summary_writer.add_summary(summary_str, initial_step+cal_num)
+
+                # if cal_num % cfg.saveperiod == 0:
+                #     ckpt_path = os.path.join(cfg.logdir, 'model.ckpt')
+                #     saver.save(sess, ckpt_path, global_step=initial_step + cal_num)
 
             if step > 0:
                 m += (0.9-0.2)/(cfg.epoch*0.6)
@@ -91,7 +96,7 @@ def main(_):
                     m = 0.9
 
             ckpt_path = os.path.join(cfg.logdir, 'model.ckpt')
-            saver.save(sess, ckpt_path, global_step=initial_step+step)
+            saver.save(sess, ckpt_path, global_step=initial_step+cal_num)
 
 if __name__ == "__main__":
     tf.app.run()
