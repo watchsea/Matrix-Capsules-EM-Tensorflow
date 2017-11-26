@@ -57,3 +57,4 @@ Open a chrome browser, visit the site: http://127.0.1.1:6006/
 
 ### Reference
 - [naturomics/CapsNet-Tensorflow](https://github.com/naturomics/CapsNet-Tensorflow): the implementation of Hinton's paper [Dynamic Routing Between Capsules](https://arxiv.org/abs/1710.09829)
+- [shzygmyx/Matrix-Capsules-pytorch](https://github.com/shzygmyx/Matrix-Capsules-pytorch)
