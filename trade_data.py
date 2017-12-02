@@ -25,6 +25,7 @@ from six.moves import xrange  # pylint: disable=redefined-builtin
 
 import csv
 from glob import glob
+import os
 
 import numpy as np
 from config import cfg
@@ -422,19 +423,16 @@ def get_csv_data2(filename,
     """
     idx = -1
     with gfile.Open(filename) as csv_file:
-        data_file = csv.reader(csv_file)  # DictReader
-        header = next(data_file)
-        header = np.asarray(header)
-        n_samples = int(header[0])
-        n_features = header.shape[0] - 2
-        data = np.zeros((n_samples, n_features), dtype=features_dtype)
+        # get Open,High,Low,Close,Volume
+        data = numpy.loadtxt(open(filename), dtype=features_dtype, delimiter=",", skiprows=1, usecols=(2, 3, 4, 5, 6))
+        n_samples = data.shape[0]  # int(header[0])
+        n_features = data.shape[1]  # header.shape[0] - 2
         train_images = np.zeros((n_samples - datalen, datalen * n_features), dtype=features_dtype)
-        for i, row in enumerate(data_file):
-            data[i] = np.asarray((row[2], row[3], row[4], row[5], row[6]), features_dtype)
-            # print(" i = %d row = %s " % (i,row))
-            #
+
+        #get the datetime info
+        dt1 = numpy.loadtxt(open(filename),dtype=str,delimiter=",",skiprows=1,usecols=(0,1))
         # get the end record [date & time ]
-        dt = [row[0], row[1]]
+        dt = dt1[len(dt1)-1]
 
         for i, d in enumerate(data):
             if i >= datalen:
@@ -450,7 +448,9 @@ def get_csv_data2(filename,
                 f5 = np.transpose(fArr5)
                 idx += 1
                 train_images[idx] = np.concatenate((f1, f2, f3, f4, f5), axis=1)
-    return train_images, dt
+        trn_images = train_images[:idx + 1, ]
+        trn_images = trn_images.reshape([-1, image_size, image_size, 1])
+    return trn_images, dt
 
 
 # %%   output the original data and indi data to a csv file
@@ -465,7 +465,11 @@ def out_indi_data(infile,
             datalen:  the length of data
         Returns:
     """
-    path = outpath  # os.path.split(os.path.realpath(__file__))[0] + "/"+outpath+"/"
+    path = cfg.indi_path
+
+    if not os.path.exists(cfg.indi_path):
+        os.mkdir(cfg.indi_path)
+    #path = outpath  # os.path.split(os.path.realpath(__file__))[0] + "/"+outpath+"/"
     filename = infile
     tempfile = filename.split("/")
     outfile = tempfile[len(tempfile) - 1]
@@ -479,11 +483,8 @@ def out_indi_data(infile,
         data_file = csv.reader(csv_file)  # DictReader
         header = next(data_file)
         header1 = header + [' <Indi>']
-        header1[0] = ' <Date>'
+        #header1[0] = ' <Date>'
         writer.writerow(header1)  # write the header
-        header = np.asarray(header)
-        n_samples = int(header[0])
-        n_features = header.shape[0] + 1
         for i, row in enumerate(data_file):
             if i < datalen:
                 idx = '0'

@@ -13,7 +13,6 @@ def cross_ent_loss(output, y):
     loss = tf.losses.sparse_softmax_cross_entropy(labels=y, logits=output)
     regularization = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
     loss = tf.add_n([loss]+regularization)
-
     return loss
 
 def spread_loss(output, y, margin):
@@ -88,23 +87,31 @@ def build_arch(input, coord_add, is_train=False):
 
     with slim.arg_scope([slim.conv2d], trainable=is_train, biases_initializer=bias_initializer, weights_regularizer=weights_regularizer):#weights_initializer=initializer,
         with tf.variable_scope('relu_conv1') as scope:
-            output = slim.conv2d(input, num_outputs=cfg.A, kernel_size=[5, 5], stride=2, padding='VALID', scope=scope)
+            kernels = 5
+            strides = 2
+            output = slim.conv2d(input, num_outputs=cfg.A, kernel_size=[kernels, kernels], stride=strides, padding='VALID', scope=scope)
 
-            assert output.get_shape() == [cfg.batch_size, 12, 12, 32]
+            dims_in = int(input.get_shape()[1])
+            dim_out = int((dims_in-kernels)/strides)+1
+
+            print(input.get_shape(), "   ", output.get_shape(),"  ,",dims_in,"--",dim_out)
+            #assert output.get_shape() == [cfg.batch_size, dim_out, dim_out, cfg.A]
 
         with tf.variable_scope('primary_caps') as scope:
             pose = slim.conv2d(output, num_outputs=cfg.B*16, kernel_size=[1, 1], stride=1, padding='VALID', scope=scope, activation_fn=None)
             activation = slim.conv2d(output, num_outputs=cfg.B, kernel_size=[1, 1], stride=1, padding='VALID', activation_fn=tf.nn.sigmoid)
-            pose = tf.reshape(pose, shape=[cfg.batch_size, 12, 12, cfg.B, 16])
-            activation = tf.reshape(activation, shape=[cfg.batch_size, 12, 12, cfg.B, 1])
+            pose = tf.reshape(pose, shape=[cfg.batch_size, dim_out, dim_out, cfg.B, 16])
+            activation = tf.reshape(activation, shape=[cfg.batch_size, dim_out, dim_out, cfg.B, 1])
             output = tf.concat([pose, activation], axis=4)
-            output = tf.reshape(output, shape=[cfg.batch_size, 12, 12, -1])
-            assert output.get_shape() == [cfg.batch_size, 12, 12, cfg.B*17]
+            output = tf.reshape(output, shape=[cfg.batch_size, dim_out, dim_out, -1])
+            #assert output.get_shape() == [cfg.batch_size, dim_out, dim_out, cfg.B*17]
 
         with tf.variable_scope('conv_caps1') as scope:
-            output = kernel_tile(output, 3, 2)
-            w=width_out = int(output.get_shape()[1])   #5
             k = 3
+            strides = 2
+            output = kernel_tile(output, k, strides)
+            w=width_out = int(output.get_shape()[1])   #5
+
             Cww = cfg.C * w *w
             output = tf.reshape(output, shape=[cfg.batch_size,cfg.B*k*k,w*w,17])   #128,8*3*3,25,17
             activation = tf.reshape(output[:, :,:,16], shape=[cfg.batch_size,cfg.B*k*k,w*w,1])   #128,72,5*5,1
@@ -119,9 +126,10 @@ def build_arch(input, coord_add, is_train=False):
             output = tf.reshape(tf.concat([pose, activation], axis=4), [cfg.batch_size, width_out, width_out, -1])
 
         with tf.variable_scope('conv_caps2') as scope:
-            output = kernel_tile(output, 3, 1)
+            k =3
+            strides =1
+            output = kernel_tile(output, k, strides)
             w = width_out = int(output.get_shape()[1])  # 5
-            k = 3
             Cww = cfg.D * w*w
             output = tf.reshape(output, shape=[cfg.batch_size,cfg.C*k*k,w*w,17])    #128,16*3*3,3*3,17
             activation = tf.reshape(output[:, :,:,16], shape=[cfg.batch_size,cfg.C*k*k,w*w,1])  #128,16*3*3,3*3,1
@@ -140,22 +148,22 @@ def build_arch(input, coord_add, is_train=False):
             with tf.variable_scope('v') as scope:
                 pose = output[:,:,:,:16]
                 activation = tf.reshape(activation,shape= [cfg.batch_size, width_out*width_out,cfg.D,1])
-                votes = mat_transform(pose, 10, weights_regularizer,tag=True)
+                votes = mat_transform(pose, cfg.label_num, weights_regularizer,tag=True)
 
             with tf.variable_scope('routing') as scope:
-                miu, activation, test2 = em_routing(votes, activation, 10, weights_regularizer)
-            output = tf.reshape(activation, shape=[cfg.batch_size, 10])
+                miu, activation, test2 = em_routing(votes, activation, cfg.label_num, weights_regularizer)
+            output = tf.reshape(activation, shape=[cfg.batch_size, cfg.label_num])
 
         #output = tf.reshape(tf.nn.avg_pool(output, ksize=[1, 3, 3, 1], strides=[1, 1, 1, 1], padding='VALID'), shape=[cfg.batch_size, 10])
 
     return output
 
 def test_accuracy(logits, labels):
-    logits_idx = tf.to_int32(tf.argmax(logits, axis=1))
-    logits_idx = tf.reshape(logits_idx, shape=(cfg.batch_size,))
-    correct_preds = tf.equal(tf.to_int32(labels), logits_idx)
-    accuracy = tf.reduce_sum(tf.cast(correct_preds, tf.float32))/cfg.batch_size
-
+    with tf.variable_scope('cross_entropy') as scope:
+        logits_idx = tf.to_int32(tf.argmax(logits, axis=1))
+        logits_idx = tf.reshape(logits_idx, shape=(cfg.batch_size,))
+        correct_preds = tf.equal(tf.to_int32(labels), logits_idx)
+        accuracy = tf.reduce_sum(tf.cast(correct_preds, tf.float32))/cfg.batch_size
     return accuracy
 
 def em_routing(votes, activation, caps_num_c, regularizer, tag=False):
@@ -176,6 +184,7 @@ def em_routing(votes, activation, caps_num_c, regularizer, tag=False):
     r = tf.constant(np.ones([batch_size, caps_num_i, out_num_i], dtype=np.float32) / out_num_i)
     activation = tf.tile(activation,[1,1,caps_num_c,1])
     activation = tf.reshape(activation,[batch_size, caps_num_i, out_num_i])
+
     for iters in range(cfg.iter_routing):
         # m-step
         r = r * activation
