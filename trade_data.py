@@ -66,7 +66,7 @@ def extract_images(filequeue):
     target_dtype = "int"
     for i, filename in enumerate(filequeue):
         print('Extracting', filename)
-        train_image, train_label = get_csv_data1(filename, target_dtype, features_dtype, DATALEN)
+        train_image, train_label = get_csv_data1(filename, target_dtype, features_dtype, image_size)
         if i == 0:
             train_images = train_image
             train_labels = train_label
@@ -81,7 +81,7 @@ def get_csv_data1(filename,
                   target_dtype,
                   features_dtype,
                   datalen=DATALEN,
-                  fileout=False):
+                  fileout=cfg.is_true_out):
     """  get data from given file(.txt or .csv)
         Args:
             file: the given file (the full name)
@@ -91,44 +91,45 @@ def get_csv_data1(filename,
         Returns:
             train_images:  feature 4D array [Index,25,25,1]
             train_labels:  label 1D array  [Index]
+            :param fileout:
     """
     idx = -1
     with gfile.Open(filename) as csv_file:
         # read data according to the file name
-        data = numpy.loadtxt(open(filename), dtype=features_dtype, delimiter=",", skiprows=1, usecols=(2, 3, 4, 5, 6))
+        data = numpy.loadtxt(open(filename), dtype=features_dtype, delimiter=",", skiprows=1, usecols=(2,3, 4, 5))  #H,L,C
         n_samples = data.shape[0]  # int(header[0])
         n_features = data.shape[1]  # header.shape[0] - 2
         # print("data:", data.shape, ",n_sampes:",n_samples,",n_features:",n_features )
-        train_images = np.zeros((n_samples - datalen - LBLPOSTNUM + 1, datalen * n_features), dtype=features_dtype)
-        train_labels = np.zeros(n_samples - datalen - LBLPOSTNUM + 1, dtype=target_dtype)
+        train_images = np.zeros((n_samples - 2*datalen - LBLPOSTNUM + 1, datalen,datalen,3), dtype=features_dtype)
+        train_labels = np.zeros(n_samples - 2*datalen - LBLPOSTNUM + 1, dtype=target_dtype)
 
         # deal the data one by one
         for i, d in enumerate(data):
-            if i >= datalen and i <= data.shape[0] - LBLPOSTNUM:
-                fArr1 = diverse_standard_comp(data[i - datalen:i, :], 0)  # open
-                fArr2 = diverse_standard_comp(data[i - datalen:i, :], 1)  # high
-                fArr3 = diverse_standard_comp(data[i - datalen:i, :], 2)  # low
-                fArr4 = diverse_standard_comp(data[i - datalen:i, :], 3)  # close
-                fArr5 = diverse_standard(data[i - datalen:i, 4])  # volume
-                f1 = np.transpose(fArr1)
-                f2 = np.transpose(fArr2)
-                f3 = np.transpose(fArr3)
-                f4 = np.transpose(fArr4)
-                f5 = np.transpose(fArr5)
+            if i >= 2*datalen and i <= data.shape[0] - LBLPOSTNUM:
+                idx += 1
+                for j in range(datalen):
+                    fArr1 = diverse_standard(data[i - datalen-j:i-j, 1])  # High
+                    fArr2 = diverse_standard(data[i - datalen-j:i-j, 2])  # Low
+                    fArr3 = diverse_standard(data[i - datalen-j:i-j, 3])  # Close
+
+                    f1 = np.transpose(fArr1)
+                    f2 = np.transpose(fArr2)
+                    f3 = np.transpose(fArr3)
+                    train_images[idx,j,:,0] = f1  #np.concatenate((f1, f2, f3), axis=1)
+                    train_images[idx, j, :,1] = f2
+                    train_images[idx, j, :, 2] = f3
+
 
                 # deal the target category (one-shot = ture)
-                tArr = data[i - datalen:i + LBLPOSTNUM, :]  # the column to calculate the profit
-                label_data = deal_label(tArr, datalen)
-
-                idx += 1
-                train_images[idx] = np.concatenate((f1, f2, f3, f4, f5), axis=1)
+                tArr = data[i - 2*datalen:i + LBLPOSTNUM, :]  # the column to calculate the profit
+                label_data = deal_label(tArr, 2*datalen)
                 train_labels[idx] = label_data
     if fileout:
-        out_indi_data(filename, train_labels, "mc_label/", datalen)
-    trn_images = train_images[:idx + 1, ]
-    trn_images = trn_images.reshape([-1, image_size, image_size, 1])
-    trn_labels = train_labels[:idx + 1, ]
-    return trn_images, trn_labels
+        out_indi_data(filename, train_labels, cfg.label_path, datalen)
+    # trn_images = train_images[:idx + 1, ]
+    # trn_images = trn_images.reshape([-1, image_size, image_size, 3])
+    # trn_labels = train_labels[:idx + 1, ]
+    return train_images, train_labels
 
 
 # %%
@@ -140,7 +141,6 @@ def diverse_standard_comp(x, k):
         x1 = np.ones(x.shape[0])
     else:
         x1 = np.round((x[:, k] - x_min) / (x_max - x_min), 4)  # round the data to 1e-4
-    x1 = x1 - 0.5  # uncentral
     x1 = x1.reshape(x.shape[0], 1)
     return x1
 
@@ -154,7 +154,6 @@ def diverse_standard(x):
         x1 = np.ones(x.shape[0])
     else:
         x1 = np.round((x - x_min) / (x_max - x_min), 4)  # round the data to 1e-4
-    x1 = x1 - 0.5  # uncentral
     x1 = x1.reshape(x.shape[0], 1)
     return x1
 
@@ -411,7 +410,7 @@ def load_data(train_dir='train_data'):
 # %%
 def get_csv_data2(filename,
                   features_dtype="float32",
-                  datalen=DATALEN):
+                  datalen=image_size):
     """  get data from given file(.txt or .csv)
         Args:
             file: the given file (the full name)
@@ -424,10 +423,10 @@ def get_csv_data2(filename,
     idx = -1
     with gfile.Open(filename) as csv_file:
         # get Open,High,Low,Close,Volume
-        data = numpy.loadtxt(open(filename), dtype=features_dtype, delimiter=",", skiprows=1, usecols=(2, 3, 4, 5, 6))
+        data = numpy.loadtxt(open(filename), dtype=features_dtype, delimiter=",", skiprows=1, usecols=(2, 3, 4, 5))
         n_samples = data.shape[0]  # int(header[0])
         n_features = data.shape[1]  # header.shape[0] - 2
-        train_images = np.zeros((n_samples - datalen, datalen * n_features), dtype=features_dtype)
+        train_images = np.zeros((n_samples - datalen, datalen,datalen,3), dtype=features_dtype)
 
         #get the datetime info
         dt1 = numpy.loadtxt(open(filename),dtype=str,delimiter=",",skiprows=1,usecols=(0,1))
@@ -435,29 +434,30 @@ def get_csv_data2(filename,
         dt = dt1[len(dt1)-1]
 
         for i, d in enumerate(data):
-            if i >= datalen:
-                fArr1 = diverse_standard_comp(data[i - datalen:i, :], 0)  # open
-                fArr2 = diverse_standard_comp(data[i - datalen:i, :], 1)  # high
-                fArr3 = diverse_standard_comp(data[i - datalen:i, :], 2)  # low
-                fArr4 = diverse_standard_comp(data[i - datalen:i, :], 3)  # close
-                fArr5 = diverse_standard(data[i - datalen:i, 4])  # volume
-                f1 = np.transpose(fArr1)
-                f2 = np.transpose(fArr2)
-                f3 = np.transpose(fArr3)
-                f4 = np.transpose(fArr4)
-                f5 = np.transpose(fArr5)
-                idx += 1
-                train_images[idx] = np.concatenate((f1, f2, f3, f4, f5), axis=1)
-        trn_images = train_images[:idx + 1, ]
-        trn_images = trn_images.reshape([-1, image_size, image_size, 1])
-    return trn_images, dt
+            if i >= 2 * datalen and i <= data.shape[0]:
+                idx +=1
+                for j in range(datalen):
+                    fArr1 = diverse_standard(data[i - datalen - j:i - j, 1])  # High
+                    fArr2 = diverse_standard(data[i - datalen - j:i - j, 2])  # Low
+                    fArr3 = diverse_standard(data[i - datalen - j:i - j, 3])  # Close
+
+                    f1 = np.transpose(fArr1)
+                    f2 = np.transpose(fArr2)
+                    f3 = np.transpose(fArr3)
+                    train_images[idx, j, :, 0] = f1  # np.concatenate((f1, f2, f3), axis=1)
+                    train_images[idx, j, :, 1] = f2
+                    train_images[idx, j, :, 2] = f3
+
+        # trn_images = train_images[:idx + 1, ]
+        # trn_images = trn_images.reshape([-1, image_size, image_size, 1])
+    return train_images, dt
 
 
 # %%   output the original data and indi data to a csv file
 def out_indi_data(infile,
                   indi,
-                  outpath="mc_test/",
-                  datalen=DATALEN):
+                  outpath=cfg.indi_path,
+                  datalen=image_size):
     """  get data from given file(.txt or .csv)
         Args:
             infile: the given file (the full name)
@@ -465,16 +465,14 @@ def out_indi_data(infile,
             datalen:  the length of data
         Returns:
     """
-    path = cfg.indi_path
-
-    if not os.path.exists(cfg.indi_path):
-        os.mkdir(cfg.indi_path)
+    if not os.path.exists(outpath):
+        os.mkdir(outpath)
     #path = outpath  # os.path.split(os.path.realpath(__file__))[0] + "/"+outpath+"/"
     filename = infile
     tempfile = filename.split("/")
     outfile = tempfile[len(tempfile) - 1]
     outfile = outfile.replace("csv", "indi.csv")
-    outfile = path + outfile
+    outfile = outpath + outfile
 
     fp = open(outfile, 'w')
     writer = csv.writer(fp)
@@ -486,10 +484,10 @@ def out_indi_data(infile,
         #header1[0] = ' <Date>'
         writer.writerow(header1)  # write the header
         for i, row in enumerate(data_file):
-            if i < datalen:
+            if i < 2*datalen or i>=np.shape(indi)[0]+2*datalen:
                 idx = '0'
             else:
-                idx = str(indi[i - datalen])
+                idx = str(indi[i - 2*datalen])
             writer.writerow(row + [idx])
             # print(" i = %d row = %s " % (i,row),type(row))
 
