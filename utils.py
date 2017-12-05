@@ -75,7 +75,11 @@ def get_batch_data(is_training):
     trX, trY = load_trade(cfg.test_dataset, is_training)
 
     data_queues = tf.train.slice_input_producer([trX, trY],shuffle=False)
-    X, Y = tf.train.batch(data_queues, num_threads=cfg.num_threads,
+    thread_num = 1
+    if is_training:
+        thread_num=cfg.num_threads
+
+    X, Y = tf.train.batch(data_queues, num_threads=thread_num,
                                   batch_size=cfg.batch_size,
                                   capacity=cfg.batch_size * 64,
                                   allow_smaller_final_batch=True)
@@ -86,7 +90,7 @@ def get_batch_data(is_training):
 def get_pred_data():
     trX,dt= trade_data.get_csv_data2(cfg.test_dataset)
     data_queues = tf.train.slice_input_producer([trX],shuffle=False)
-    X= tf.train.batch(data_queues, num_threads=cfg.num_threads,
+    X= tf.train.batch(data_queues, num_threads=1,
                                   batch_size=cfg.batch_size,
                                   capacity=cfg.batch_size * 64,
                                   allow_smaller_final_batch=True)
