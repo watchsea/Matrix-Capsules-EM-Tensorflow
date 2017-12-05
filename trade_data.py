@@ -26,6 +26,7 @@ from six.moves import xrange  # pylint: disable=redefined-builtin
 import csv
 from glob import glob
 import os
+import struct
 
 import numpy as np
 from config import cfg
@@ -67,6 +68,13 @@ def extract_images(filequeue):
     for i, filename in enumerate(filequeue):
         print('Extracting', filename)
         train_image, train_label = get_csv_data1(filename, target_dtype, features_dtype, image_size)
+
+        #write down the feature and label data to file. extensive is .bin
+        if cfg.is_feature_store:
+            # change the 4 dimensions data to 2 dimensions
+            train1_image = train_image.reshape([train_image.shape[0],-1])
+            csv2bin(filename, train1_image, train_label)
+            print('Write down feature data, file:',filename)
         if i == 0:
             train_images = train_image
             train_labels = train_label
@@ -76,6 +84,27 @@ def extract_images(filequeue):
     return train_images, train_labels
 
 
+def csv2bin(filename, feature, label):
+    """
+        convert the csv data to hex,  and output to a file
+        Args:
+            filename:  the given file(the full name)
+            feature:    the feature columns
+            label:      label data
+            dtype:     the feature and label data output the hex file data type
+    """
+    if filename.split('.')[-1] != 'csv':
+        return
+    binfilename = filename.replace('csv', 'bin')
+    binfile = open(binfilename, 'wb')
+
+    for i, data in enumerate(feature):
+        for j in range(feature.shape[1]):
+            parsedata = struct.pack("f", float(data[j]))
+            binfile.write(parsedata)
+        labeldata = struct.pack("f", float(label[i]))
+        binfile.write(labeldata)
+    binfile.close()
 # %%
 def get_csv_data1(filename,
                   target_dtype,
@@ -345,7 +374,7 @@ def read_data_sets(train_dir,
                    one_hot=False,
                    dtype=dtypes.float32,
                    reshape=False,
-                   validation_size=100):
+                   validation_size=10):
     if fake_data:
         def fake():
             return DataSet([], [], fake_data=True, one_hot=one_hot, dtype=dtype)
@@ -493,3 +522,7 @@ def out_indi_data(infile,
 
     # close the file pointer
     fp.close()
+
+
+if __name__ == "__main__":
+    data = read_data_sets(cfg.dataset, one_hot=False)
