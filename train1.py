@@ -23,7 +23,7 @@ def main(_):
     datanum = data.num_examples
     with tf.Graph().as_default(), tf.device('/cpu:0'):
         batch_x =tf.placeholder(tf.float32,[cfg.batch_size,cfg.image_size,cfg.image_size,3])
-        batch_labels = tf.placeholder(tf.int32,[cfg.batch_size,1])
+        batch_labels = tf.placeholder(tf.int32,[cfg.batch_size])
         global_step = tf.get_variable('global_step', [], initializer=tf.constant_initializer(0), trainable=False)
         opt = tf.train.AdamOptimizer()
 
@@ -76,7 +76,7 @@ def main(_):
             for i in range(num_batches_per_epoch):
                 tic = time.time()
                 x,y = data.next_batch(cfg.batch_size)
-                _, loss_value,accuracy_val = sess.run([train_op, loss,accuracy], feed_dict={m_op: m})
+                _, loss_value,accuracy_val = sess.run([train_op, loss,accuracy], feed_dict={batch_x:x,batch_labels:y,m_op: m})
                 print('%d/%d, %d/%d iteration is finished in ' % (step,cfg.epoch,i,num_batches_per_epoch) + '%f second' % (time.time()-tic) + ',m:',m,',loss: %f'% loss_value,",accuracy:",accuracy_val)
 
                 assert not np.isnan(loss_value), 'loss is nan'
