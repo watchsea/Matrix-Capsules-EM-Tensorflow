@@ -44,36 +44,31 @@ def load_mnist(path, is_training):
     else:
         return teX, teY
 
-
-def load_trade(path, is_training):
+def load_trade(is_training):
     if is_training:
-        data = trade_data.read_data_sets(path,one_hot=False)
-        trX = data.train.images
-        trY = data.train.labels
-        return trX, trY
+        data = trade_data.read_data_sets(cfg.dataset,one_hot=False)
+        return data.train
     else:
-        data = trade_data.read_test_sets(cfg.test_dataset,one_hot=False)
-        teX = data.images
-        teY = data.labels
-        return teX, teY
-
+        data = trade_data.read_test_sets(cfg.test_dataset, one_hot=False)
+        return data
 
 def get_shuffle_batch_data(is_training):
-    trX, trY = load_trade(cfg.dataset, is_training)
-
+    data= load_trade(is_training)
+    trX = data.images
+    trY = data.labels
     data_queues = tf.train.slice_input_producer([trX, trY])
     X, Y = tf.train.shuffle_batch(data_queues, num_threads=cfg.num_threads,
                                   batch_size=cfg.batch_size,
                                   capacity=cfg.batch_size * 64,
                                   min_after_dequeue=cfg.batch_size * 32,
                                   allow_smaller_final_batch=False)
-    datanum = trX.shape[0]
     print(X.shape,"--",Y.shape)
-    return(X, Y,datanum)
+    return(X, Y,data.num_examples)
 
 def get_batch_data(is_training):
-    trX, trY = load_trade(cfg.test_dataset, is_training)
-
+    data = load_trade(is_training)
+    trX=data.images
+    trY = data.labels
     data_queues = tf.train.slice_input_producer([trX, trY],shuffle=False)
     thread_num = 1
     if is_training:
@@ -83,9 +78,8 @@ def get_batch_data(is_training):
                                   batch_size=cfg.batch_size,
                                   capacity=cfg.batch_size * 64,
                                   allow_smaller_final_batch=True)
-    datanum = trX.shape[0]
     print(X.shape,"--",Y.shape)
-    return(X, Y,datanum)
+    return(X, Y,data.num_examples)
 
 def get_pred_data():
     trX,dt= trade_data.get_csv_data2(cfg.test_dataset)
