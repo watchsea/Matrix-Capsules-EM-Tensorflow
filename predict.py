@@ -48,7 +48,7 @@ def main(_):
 
         print(np.shape(y_pred1), ",",datanum)
         print(y_pred1)
-        trade_data.out_indi_data(cfg.test_dataset,y_pred1)
+        trade_data.out_indi_data(cfg.test_dataset,y_pred1,datalen=cfg.image_size)
 
 if __name__ == "__main__":
     tf.app.run()

@@ -56,17 +56,23 @@ def main(_):
                 step += 1
                 if i==0:
                     y_pred1 = y_pred
+                    label1 = y
                 else:
                     y_pred1 = np.concatenate((y_pred1,y_pred),axis=0)
-
+                    label1 = np.concatenate((label1,y),axis=0)
+                #print("Label:",np.shape(label1),"\n", label1)
 
 
             ave_acc = accuracy_sum/num_batches_test
             # print("The last batch----Y:",np.shape(y),"\n", y)
             # print("Y_prediction:", batch_acc_v, "\n", y_pred)
             print(epoch,'epoch: average accuracy is %f' % ave_acc)
+
             print(np.shape(y_pred1), ",",datanum)
-            trade_data.out_indi_data(cfg.test_dataset,y_pred1)
+            label1 = label1[:datanum]
+            y_pred1 = y_pred1[:datanum]
+            print("label:",np.shape(label1))
+            trade_data.out_indi_data(cfg.test_dataset,y_pred1,datalen=cfg.image_size)
 
 if __name__ == "__main__":
     tf.app.run()

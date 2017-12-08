@@ -49,7 +49,7 @@ def main(_):
         sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement=False))
         sess.run(tf.global_variables_initializer())
 
-        saver = tf.train.Saver(tf.global_variables(), max_to_keep=cfg.epoch)
+        saver = tf.train.Saver(tf.global_variables(), max_to_keep=10)  #cfg.epoch)
 
         # restore from the check point
         ckpt = tf.train.get_checkpoint_state(cfg.logdir)
@@ -57,15 +57,17 @@ def main(_):
             saver.restore(sess, ckpt.model_checkpoint_path)
             initial_step = int(ckpt.model_checkpoint_path.split('-')[1])
             print(ckpt, ckpt.model_checkpoint_path, initial_step)
+            m=0.9
         else:
             initial_step =0
+            m = 0.2
 
         summary_op = tf.summary.merge(summaries)
         tf.train.start_queue_runners(sess=sess)
 
         summary_writer = tf.summary.FileWriter(cfg.logdir, graph=sess.graph)
 
-        m = 0.2
+
         cal_num=0
         for step in range(cfg.epoch):
             for i in range(num_batches_per_epoch):
@@ -75,16 +77,18 @@ def main(_):
 
                 assert not np.isnan(loss_value), 'loss is nan'
                 cal_num+=1
-                if i % 50 == 0:
+                if i % 30 == 0:
                     summary_str = sess.run(summary_op, feed_dict={m_op: m})
                     summary_writer.add_summary(summary_str, initial_step+cal_num)
 
-                # if cal_num % cfg.saveperiod == 0:
-                #     ckpt_path = os.path.join(cfg.logdir, 'model.ckpt')
-                #     saver.save(sess, ckpt_path, global_step=initial_step + cal_num)
+                if cal_num % cfg.saveperiod == 0:
+                    ckpt_path = os.path.join(cfg.logdir, 'model.ckpt')
+                    saver.save(sess, ckpt_path, global_step=initial_step + cal_num)
 
                 if m<0.9:
                     m += round((0.9-0.2) / num_batches_per_epoch,5)
+                else:
+                    m = 0.9
 
             ckpt_path = os.path.join(cfg.logdir, 'model.ckpt')
             saver.save(sess, ckpt_path, global_step=initial_step+cal_num)

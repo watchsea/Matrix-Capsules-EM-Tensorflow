@@ -19,7 +19,7 @@ def main(_):
                  [[8., 16.], [12., 16.], [16., 16.]]]
 
     coord_add = np.array(coord_add, dtype=np.float32)/28.
-    data = utils.load_all_trade(is_training=True)
+    data = utils.load_trade(is_training=True)
     datanum = data.num_examples
     with tf.Graph().as_default(), tf.device('/cpu:0'):
         batch_x =tf.placeholder(tf.float32,[cfg.batch_size,cfg.image_size,cfg.image_size,3])
