@@ -34,6 +34,7 @@ from tensorflow.python.platform import gfile
 
 from tensorflow.contrib.learn.python.learn.datasets import base
 from tensorflow.python.framework import dtypes
+import tensorflow as tf
 
 DATALEN = cfg.data_period  # 125
 LABELNUM = cfg.label_num  # 19
@@ -73,7 +74,8 @@ def extract_images(filequeue):
         if cfg.is_feature_store:
             # change the 4 dimensions data to 2 dimensions
             train1_image = train_image.reshape([train_image.shape[0],-1])
-            csv2bin(filename, train1_image, train_label)
+            #csv2bin(filename, train1_image, train_label)
+            csv2tfrecord(filename, train1_image, train_label)
             print('Write down feature data, file:',filename)
         if i == 0:
             train_images = train_image
@@ -83,6 +85,32 @@ def extract_images(filequeue):
             train_labels = np.concatenate((train_labels, train_label), axis=0)
     return train_images, train_labels
 
+
+def csv2tfrecord(filename, feature, label):
+    """
+        convert the csv data to tfrecord,  and output to a file
+        Args:
+            filename:  the given file(the full name)
+            feature:    the feature columns
+            label:      label data
+    """
+    if filename.split('.')[-1] != 'csv':
+        return
+    binfilename = filename.replace('csv', 'tfrecord')
+    writer = tf.python.io.TFRecordWriter(binfilename)
+
+    for i, data in enumerate(feature):
+        data = data.astype(numpy.float32)
+        data_raw = data.tostring()
+        labeldata = label[i]
+
+        features = {'images':tf.train.Feature(bytes_list = tf.train.BytesList(value=[data_raw])),
+                    'labels':tf.train.Feature(int64_list = tf.train.Int64List(value=labeldata))}
+        # Create an example protocol buffer
+        example = tf.train.Example(features=tf.train.Features(feature=features))
+        # Serialize to string and write on the file
+        writer.write(example.SerializeToString())
+    writer.close()
 
 def csv2bin(filename, feature, label):
     """
