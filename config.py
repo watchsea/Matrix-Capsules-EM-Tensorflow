@@ -26,7 +26,7 @@ flags.DEFINE_integer('D', 16, 'number of channels in output from ConvCaps2')
 ############################
 #   environment setting    #
 ############################
-flags.DEFINE_string('dataset', 'E:/study/dl/train_data/*.0000.*.csv', 'the path for train dataset')   #data/mnist
+flags.DEFINE_string('dataset', 'E:/study/dl/train_data/*.0000.*.csv', 'the path for train dataset')   #*.0000.*.csv
 flags.DEFINE_string('test_dataset', 'E:/study/dl/test_data/rb.HOT.60m(20171202).csv', 'the path for test dataset,must be only one')   #data/mnist
 flags.DEFINE_string('indi_path',"indi_out/", 'the indicators store path')
 flags.DEFINE_string('label_path',"label_out/", 'the true label data store path')

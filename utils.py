@@ -91,3 +91,47 @@ def get_pred_data():
     datanum = trX.shape[0]
     print("get_pred_data:",X.shape)
     return(X,dt,datanum)
+
+def get_shuffle_tfrecord(is_training):
+    feature = {'images': tf.FixedLenFeature([], tf.string),
+               'labels': tf.FixedLenFeature([], tf.int64)}
+    # Create a list of filenames and pass it to a queue
+    if is_training:
+        data_path = cfg.dataset
+        thread_num = cfg.num_threads
+        allow_smaller_final_batch = False
+    else:
+        data_path = cfg.cfg.test_dataset
+        thread_num =1
+        allow_smaller_final_batch = True
+    filename_queue = tf.train.string_input_producer([data_path], num_epochs=1)
+    # Define a reader and read the next record
+    reader = tf.TFRecordReader()
+    _, serialized_example = reader.read(filename_queue)
+    # Decode the record read by the reader
+    features = tf.parse_single_example(serialized_example, features=feature)
+    # Convert the image data from string back to the numbers
+    image = tf.decode_raw(features['images'], tf.float32)
+
+    # Cast label data into int32
+    label = tf.cast(features['labels'], tf.int32)
+    # Reshape image data into the original shape
+    image = tf.reshape(image, [cfg.image_size, cfg.image_size, 3])
+
+    # Any preprocessing here ...
+
+    # Creates batches by randomly shuffling tensors
+    if is_training:
+        images, labels = tf.train.shuffle_batch([image, label], num_threads=thread_num,
+                                      batch_size=cfg.batch_size,
+                                      capacity=cfg.batch_size * 64,
+                                      min_after_dequeue=cfg.batch_size * 32,
+                                      allow_smaller_final_batch=allow_smaller_final_batch)
+    else:
+        images, labels = tf.train.batch([image, label], num_threads=thread_num,
+                                                batch_size=cfg.batch_size,
+                                                capacity=cfg.batch_size * 64,
+                                                min_after_dequeue=cfg.batch_size * 32,
+                                                allow_smaller_final_batch=allow_smaller_final_batch)
+
+    return images,labels

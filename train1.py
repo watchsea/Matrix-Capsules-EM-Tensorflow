@@ -6,11 +6,13 @@ E-mail: zhangsuofei at njupt.edu.cn
 
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
+from tensorflow.python.client import timeline
 from config import cfg
 import utils
 import time
 import numpy as np
 import os
+import sys
 import capsnet_em as net
 
 def main(_):
@@ -43,6 +45,17 @@ def main(_):
 
         loss_name = 'spread_loss'
 
+        # Print trainable variable parameter statistics to stdout.
+        # By default, statistics are associated with each graph node.
+        param_stats = tf.contrib.tfprof.model_analyzer.print_model_analysis(
+            tf.get_default_graph(),
+            tfprof_options=tf.contrib.tfprof.model_analyzer.
+                TRAINABLE_VARS_PARAMS_STAT_OPTIONS)
+
+        # param_stats is tensorflow.tfprof.TFGraphNodeProto proto.
+        # Let's print the root below.
+        sys.stdout.write('total_params: %d\n' % param_stats.total_parameters)
+
         summaries = []
         summaries.append(tf.summary.scalar(loss_name, loss))
         summaries.append(tf.summary.scalar("accuracy",accuracy))
@@ -51,6 +64,10 @@ def main(_):
 
         sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement=False))
         sess.run(tf.global_variables_initializer())
+
+        # add addition options to trace the session execution
+        options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+        run_metadata = tf.RunMetadata()
 
         saver = tf.train.Saver(tf.global_variables(), max_to_keep=10)  #cfg.epoch)
 
@@ -82,8 +99,25 @@ def main(_):
                 assert not np.isnan(loss_value), 'loss is nan'
                 cal_num+=1
                 if i % 30 == 0:
-                    summary_str = sess.run(summary_op, feed_dict={batch_x:x,batch_labels:y,m_op: m})
+
+                    summary_str = sess.run(summary_op, feed_dict={batch_x:x,batch_labels:y,m_op: m},
+                                           options=options,
+                                           run_metadata=run_metadata
+                                           )
+                    summary_writer.add_run_metadata(run_metadata,'step%d'% cal_num)
                     summary_writer.add_summary(summary_str, initial_step+cal_num)
+
+                    # Print to stdout an analysis of the memory usage and the timing information
+                    # broken down by operations.
+                    # tf.contrib.tfprof.model_analyzer.print_model_analysis(
+                    #     tf.get_default_graph(),
+                    #     run_meta=run_metadata,
+                    #     tfprof_options=tf.contrib.tfprof.model_analyzer.PRINT_ALL_TIMING_MEMORY)
+
+                    # fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+                    # chrome_trace = fetched_timeline.generate_chrome_trace_format()
+                    # with open('./time_line/timeline_02_step_%d.json' % i, 'w') as f:
+                    #     f.write(chrome_trace)
 
                 if cal_num % cfg.saveperiod == 0:
                     ckpt_path = os.path.join(cfg.logdir, 'model.ckpt')
