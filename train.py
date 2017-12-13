@@ -36,15 +36,20 @@ def main(_):
                 # loss = net.cross_ent_loss(output, batch_labels)
                 loss = net.spread_loss(output, batch_labels, m_op)
                 accuracy = net.test_accuracy(output,batch_labels)
+                tf.summary.scalar("spread_loss", loss)
+                tf.summary.scalar("accuracy", accuracy)
+
+            """Compute gradient."""
             grad = opt.compute_gradients(loss)
+            # See: https://stackoverflow.com/questions/40701712/how-to-check-nan-in-gradients-in-tensorflow-when-updating
+            grad_check = [tf.check_numerics(g, message='Gradient NaN Found!')
+                          for g, _ in grad if g is not None] + [tf.check_numerics(loss, message='Loss NaN Found')]
 
-        loss_name = 'spread_loss'
-
-        summaries = []
-        summaries.append(tf.summary.scalar(loss_name, loss))
-        summaries.append(tf.summary.scalar("accuracy",accuracy))
-
-        train_op = opt.apply_gradients(grad, global_step=global_step)
+        """Apply graident."""
+        with tf.control_dependencies(grad_check):
+            update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+            with tf.control_dependencies(update_ops):
+                train_op = opt.apply_gradients(grad, global_step=global_step)
 
         sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement=False))
         sess.run(tf.global_variables_initializer())
@@ -62,36 +67,56 @@ def main(_):
             initial_step =0
             m = 0.2
 
-        summary_op = tf.summary.merge(summaries)
-        tf.train.start_queue_runners(sess=sess)
+        # read snapshot
+        # latest = os.path.join(cfg.logdir, 'model.ckpt-4680')
+        # saver.restore(sess, latest)
+        """Set summary op."""
+        summary_op = tf.summary.merge_all()
 
-        summary_writer = tf.summary.FileWriter(cfg.logdir, graph=sess.graph)
+        """Start coord & queue."""
+        coord = tf.train.Coordinator()
+        threads = tf.train.start_queue_runners(sess=sess, coord=coord)
 
+        """Set summary writer"""
+        if not os.path.exists(cfg.logdir + '/train_log/'):
+            os.makedirs(cfg.logdir + '/train_log/')
+        summary_writer = tf.summary.FileWriter(
+            cfg.logdir + '/train_log/', graph=sess.graph)  # graph = sess.graph, huge!
 
         cal_num=0
         for step in range(cfg.epoch):
             for i in range(num_batches_per_epoch):
                 tic = time.time()
-                _, loss_value,accuracy_val = sess.run([train_op, loss,accuracy], feed_dict={m_op: m})
-                print('%d/%d, %d/%d iteration is finished in ' % (step,cfg.epoch,i,num_batches_per_epoch) + '%f second' % (time.time()-tic) + ',m:',m,',loss: %f'% loss_value,",accuracy:",accuracy_val)
+                """"TF queue would pop batch until no file"""
+                try:
+                    _, loss_value,accuracy_val = sess.run([train_op, loss,accuracy], feed_dict={m_op: m})
+                    print('%d/%d, %d/%d iteration is finished in ' % (step,cfg.epoch,i,num_batches_per_epoch) + '%f second' % (time.time()-tic) + ',m:',m,',loss: %f'% loss_value,",accuracy:",accuracy_val)
 
-                assert not np.isnan(loss_value), 'loss is nan'
-                cal_num+=1
-                if i % 30 == 0:
-                    summary_str = sess.run(summary_op, feed_dict={m_op: m})
-                    summary_writer.add_summary(summary_str, initial_step+cal_num)
-
-                if cal_num % cfg.saveperiod == 0:
-                    ckpt_path = os.path.join(cfg.logdir, 'model.ckpt')
-                    saver.save(sess, ckpt_path, global_step=initial_step + cal_num)
-
-                if m<0.9:
-                    m += round((0.9-0.2) / num_batches_per_epoch,5)
+                    cal_num += 1
+                except tf.errors.InvalidArgumentError:
+                    print('%d iteration contains NaN gradients. Discard.' % cal_num)
+                    continue
                 else:
-                    m = 0.9
+                    """Write to summary."""
+                    if i % 30 == 0:
+                        summary_str = sess.run(summary_op, feed_dict={m_op: m})
+                        summary_writer.add_summary(summary_str, initial_step+cal_num)
+
+                    if cal_num % cfg.saveperiod == 0:
+                        ckpt_path = os.path.join(cfg.logdir, 'model.ckpt')
+                        saver.save(sess, ckpt_path, global_step=initial_step + cal_num)
+
+                    if m<0.9:
+                        m += round((0.9-0.2) / num_batches_per_epoch,5)
+                    else:
+                        m = 0.9
 
             ckpt_path = os.path.join(cfg.logdir, 'model.ckpt')
             saver.save(sess, ckpt_path, global_step=initial_step+cal_num)
+
+        """Join threads"""
+        coord.join(threads)
+
 
 if __name__ == "__main__":
     tf.app.run()
