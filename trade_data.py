@@ -76,7 +76,6 @@ def extract_images(filequeue):
             train1_image = train_image.reshape([train_image.shape[0],-1])
             #csv2bin(filename, train1_image, train_label)
             csv2tfrecord(filename, train1_image, train_label)
-            print('Write down feature data, file:',filename)
         if i == 0:
             train_images = train_image
             train_labels = train_label
@@ -97,20 +96,23 @@ def csv2tfrecord(filename, feature, label):
     if filename.split('.')[-1] != 'csv':
         return
     binfilename = filename.replace('csv', 'tfrecord')
-    writer = tf.python.io.TFRecordWriter(binfilename)
+    if not os.path.exists(binfilename):
+        writer = tf.python_io.TFRecordWriter(binfilename)
+        for i, data in enumerate(feature):
+            data = data.astype(numpy.float32)
+            data_raw = data.tostring()
+            labeldata = label[i]
 
-    for i, data in enumerate(feature):
-        data = data.astype(numpy.float32)
-        data_raw = data.tostring()
-        labeldata = label[i]
-
-        features = {'images':tf.train.Feature(bytes_list = tf.train.BytesList(value=[data_raw])),
-                    'labels':tf.train.Feature(int64_list = tf.train.Int64List(value=labeldata))}
-        # Create an example protocol buffer
-        example = tf.train.Example(features=tf.train.Features(feature=features))
-        # Serialize to string and write on the file
-        writer.write(example.SerializeToString())
-    writer.close()
+            features = {'images':tf.train.Feature(bytes_list = tf.train.BytesList(value=[data_raw])),
+                        'labels':tf.train.Feature(int64_list = tf.train.Int64List(value=[labeldata]))}
+            # Create an example protocol buffer
+            example = tf.train.Example(features=tf.train.Features(feature=features))
+            # Serialize to string and write on the file
+            writer.write(example.SerializeToString())
+        writer.close()
+        print('Write down feature data, file:', binfilename)
+    else:
+        print("%s has change." % binfilename)
 
 def csv2bin(filename, feature, label):
     """

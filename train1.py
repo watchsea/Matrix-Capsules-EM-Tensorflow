@@ -77,10 +77,9 @@ def main(_):
             saver.restore(sess, ckpt.model_checkpoint_path)
             initial_step = int(ckpt.model_checkpoint_path.split('-')[1])
             print(ckpt, ckpt.model_checkpoint_path, initial_step)
-            m=0.9
         else:
             initial_step =0
-            m = 0.2
+        m = 0.2
 
         summary_op = tf.summary.merge(summaries)
         tf.train.start_queue_runners(sess=sess)
